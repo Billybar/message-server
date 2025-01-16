@@ -1,0 +1,25 @@
+@"
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+env/
+.env
+.venv/
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+
+# Project specific
+*.db
+
+# Virtual Environment
+.venv/
+
+# Test cache
+.pytest_cache/
+"@ | Out-File -FilePath .gitignore -Encoding UTF8
