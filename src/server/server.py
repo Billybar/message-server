@@ -209,9 +209,44 @@ class MessageUServer:
             self.send_error(client_socket)
 
     def handle_send_message(self, client_socket: socket.socket, client_id: bytes, payload: bytes):
-        """Handle sending a message between clients"""
-        # TODO: Implement message sending logic
-        pass
+        """
+        Handle sending a message between clients (code 603)
+
+        Args:
+            client_socket: The client's socket connection
+            client_id: ID of sending client (16 bytes)
+            payload: Contains destination client ID (16 bytes), message type (1 byte),
+                    content size (4 bytes) and content (variable size)
+        """
+        try:
+            # Validate minimum payload size (16 + 1 + 4 = 21 bytes)
+            if len(payload) < 21:
+                raise ValueError(f"Invalid payload length: {len(payload)}")
+
+            # Extract message components
+            dest_client_id = payload[:16]
+            message_type = payload[16]
+            content_size = struct.unpack('<I', payload[17:21])[0]
+            content = payload[21:21 + content_size] if content_size > 0 else None
+
+            with self.lock:
+                # Verify destination client exists
+                if dest_client_id not in self.clients:
+                    self.send_error(client_socket)
+                    return
+
+                # Create and store new message
+                message_id = len(self.messages) + 1  # Simple incrementing ID
+                message = Message(message_id, dest_client_id, client_id, message_type, content)
+                self.messages.append(message)
+
+                # Send success response with message ID
+                response = struct.pack('<BHI16sI', self.VERSION, 2103, 20, dest_client_id, message_id)
+                client_socket.send(response)
+
+        except Exception as e:
+            logging.error(f"Error handling send message: {e}")
+            self.send_error(client_socket)
 
     def handle_pending_messages(self, client_socket: socket.socket, client_id: bytes):
         """Handle request for pending messages"""
