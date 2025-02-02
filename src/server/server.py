@@ -49,7 +49,7 @@ class MessageUServer:
         try:
             # logging.info("Waiting to receive data...")
             header = client_socket.recv(23)
-            logging.info(f"Received header data: {header}, length: {len(header)}")
+            logging.info(f"Received header data: {header.hex()}, length: {len(header)}")
 
             if not header:
                 logging.error("No data received")
@@ -138,6 +138,8 @@ class MessageUServer:
                 client_socket.send(response)
 
                 logging.info(f"Registered new user: {username}")
+                logging.info(f"User clientID: {client_id.hex()}")
+                logging.info(f"User Public key : {public_key.hex()[:5]}...{public_key.hex()[-5:]}")
 
         except Exception as e:
             logging.error(f"Registration error: {e}")
@@ -249,15 +251,64 @@ class MessageUServer:
             self.send_error(client_socket)
 
     def handle_pending_messages(self, client_socket: socket.socket, client_id: bytes):
-        """Handle request for pending messages"""
-        # TODO: Implement pending messages logic
-        pass
+        """
+        Handle request for pending messages (code 604)
+        Returns all pending messages for the requesting client
+
+        Args:
+            client_socket: The client's socket connection
+            client_id: ID of requesting client (16 bytes)
+        """
+        try:
+            with self.lock:
+                # Filter messages for this client
+                pending_messages = []
+                remaining_messages = []
+
+                for msg in self.messages:
+                    if msg.to_client == client_id:
+                        pending_messages.append(msg)
+                    else:
+                        remaining_messages.append(msg)
+
+                # If no pending messages, send empty response
+                if not pending_messages:
+                    response = struct.pack('<BHI', self.VERSION, 2104, 0)
+                    client_socket.send(response)
+                    return
+
+                # Build response payload for all pending messages
+                payload = bytearray()
+                for msg in pending_messages:
+                    # Add sender client ID (16 bytes)
+                    payload.extend(msg.from_client)
+                    # Add message ID (4 bytes)
+                    payload.extend(struct.pack('<I', msg.ID))
+                    # Add message type (1 byte)
+                    payload.extend(bytes([msg.type]))
+                    # Add content size (4 bytes)
+                    content_size = len(msg.content) if msg.content else 0
+                    payload.extend(struct.pack('<I', content_size))
+                    # Add content if exists
+                    if msg.content:
+                        payload.extend(msg.content)
+
+                # Send response with all pending messages
+                response = struct.pack('<BHI', self.VERSION, 2104, len(payload))
+                response += payload
+                client_socket.send(response)
+
+                # Update messages list to remove sent messages
+                self.messages = remaining_messages
+
+        except Exception as e:
+            logging.error(f"Error handling pending messages: {e}")
+            self.send_error(client_socket)
 
     def send_error(self, client_socket: socket.socket):
         """Send error response to client"""
         response = struct.pack('<BHI', self.VERSION, 9000, 0)
         client_socket.send(response)
-
 
 def main():
     # Configure logging

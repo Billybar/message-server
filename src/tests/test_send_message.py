@@ -25,6 +25,16 @@ def simulate_client():
         if len(dest_id) != 16:
             print(f"Invalid ID length: got {len(dest_id)} bytes, expected 16")
 
+        # Get message type from user
+        print("\nSelect message type:")
+        print("1) Request for symmetric key")
+        print("2) Send symmetric key")
+        print("3) Send text message")
+        message_type = int(input("Enter message type (1-3): "))
+
+        if not 1 <= message_type <= 3:
+            raise ValueError("Invalid message type. Must be between 1-4.")
+
         # Create send message request
         request = bytearray()
 
@@ -34,7 +44,6 @@ def simulate_client():
 
         # Version (1 byte)
         request.append(1)
-
         # Request code 603 for send message (2 bytes, little endian)
         request.extend((603).to_bytes(2, 'little'))
 
@@ -45,12 +54,11 @@ def simulate_client():
         payload.extend(dest_id)
         print(f"Sending to destination ID: {dest_id.hex()}")
 
-        # Message type (1 byte) - using type 3 for text message
-        message_type = 3
+        # Message type
         payload.append(message_type)
 
         # Message content
-        content = "Hello, this is a test message!".encode('ascii')
+        content = f"test message From: {sender_id.hex()}".encode('ascii')
 
         # Content size (4 bytes, little endian)
         payload.extend(len(content).to_bytes(4, 'little'))
